@@ -1,14 +1,16 @@
 
 from rest_framework.authtoken.models import Token
-from django.contrib.auth import authenticate
-from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status,viewsets
 from django.core.exceptions import ObjectDoesNotExist
+from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
-from rest_framework.decorators import api_view
-from .serializers import UserSerializer,DriverSerializer,RideSerializer
+from rest_framework.decorators import api_view,authentication_classes, permission_classes
+from rest_framework.authentication import SessionAuthentication, TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
 from .models import Driver ,Ride
+from .serializers import UserSerializer,DriverSerializer,RideSerializer
+
 
 @api_view(['POST'])
 def register_user(request):
@@ -46,12 +48,10 @@ class DriverViewSet(viewsets.ModelViewSet):
     queryset = Driver.objects.all()
     serializer_class = DriverSerializer
 
-from rest_framework import viewsets
+
+
+from rest_framework import status
 from rest_framework.response import Response
-from rest_framework import status
-from .models import Ride
-from .serializers import RideSerializer
-from rest_framework import status
 
 class RideViewSet(viewsets.ModelViewSet):
     queryset = Ride.objects.all()
@@ -60,8 +60,12 @@ class RideViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            driver_status = serializer.validated_data['driver'].status
+            if driver_status:
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            else:
+                return Response({'driver': 'Driver is not active.'}, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def update(self, request, *args, **kwargs):
@@ -70,6 +74,16 @@ class RideViewSet(viewsets.ModelViewSet):
         data = {'status': request.data.get('status')}  # Only update the 'status' field
         serializer = self.get_serializer(instance, data=data, partial=partial)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
+            driver_status = serializer.validated_data['driver'].status
+            if driver_status:
+                serializer.save()
+                return Response(serializer.data)
+            else:
+                return Response({'driver': 'Driver is not active.'}, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def test_token(request):
+    return Response("passed!")
